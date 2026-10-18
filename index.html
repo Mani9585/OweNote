@@ -3,6 +3,38 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#14532d"><title>OweNote — Cloud Money Lent Tracker</title>
+
+<script>
+/* Early, isolated auth-tab handler: the registration tab should switch UI even before Supabase is configured. */
+(function () {
+  function switchAuthMode(mode) {
+    const title = document.getElementById('authTitle');
+    const submit = document.getElementById('authSubmit');
+    const login = document.getElementById('showLogin');
+    const signup = document.getElementById('showSignup');
+    const reset = document.getElementById('resetPassword');
+    const password = document.getElementById('password');
+    const message = document.getElementById('authMessage');
+    if (!title || !submit || !login || !signup) return;
+    title.textContent = mode === 'signup' ? 'Create your OweNote account' : 'Sign in to OweNote';
+    submit.textContent = mode === 'signup' ? 'Create account' : 'Sign in';
+    login.className = 'btn' + (mode === 'login' ? ' primary' : '');
+    signup.className = 'btn' + (mode === 'signup' ? ' primary' : '');
+    if (reset) reset.classList.toggle('hidden', mode !== 'login');
+    if (password) password.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+    if (message) message.textContent = '';
+    window.__owenoteAuthMode = mode;
+  }
+  document.addEventListener('DOMContentLoaded', function () {
+    const login = document.getElementById('showLogin');
+    const signup = document.getElementById('showSignup');
+    if (login) login.addEventListener('click', function () { switchAuthMode('login'); });
+    if (signup) signup.addEventListener('click', function () { switchAuthMode('signup'); });
+    switchAuthMode('login');
+  });
+})();
+</script>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#f5f7f4;--card:#fff;--text:#17231b;--muted:#68766c;--line:#e2e8e2;--green:#166534;--green2:#dcfce7;--red:#b91c1c;--redbg:#fee2e2;--amber:#92400e;--amberbg:#fef3c7}
@@ -13,7 +45,7 @@
 <body><div class="wrap">
 <header class="top"><div class="brand"><div class="logo">₹</div><div><h1>OweNote</h1><p>Your money, remembered. Now with cloud sync.</p></div></div><div id="topActions" class="actions hidden"><span id="userEmail" class="status"></span><button class="btn" id="exportBtn">Export JSON</button><button class="btn" id="csvBtn">Export CSV</button><button class="btn" id="logoutBtn">Sign out</button><button class="btn primary" id="addBtn">＋ Add loan</button></div></header>
 <div id="configWarning" class="banner hidden"><strong>Setup needed:</strong> add your Supabase Project URL and publishable/anon key near the top of this file. These are public client settings; never put a service-role key here.</div>
-<section id="authPanel" class="panel auth"><h2 id="authTitle">Sign in to OweNote</h2><p class="muted" style="margin-top:4px">Your records sync securely to your account across devices.</p><div class="tabs"><button class="btn primary" id="showLogin">Sign in</button><button class="btn" id="showSignup">Create account</button></div><form id="authForm"><div class="field"><label for="email">Email address</label><input id="email" type="email" autocomplete="email" required placeholder="you@example.com"></div><div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters"></div><button class="btn primary" id="authSubmit" style="width:100%">Sign in</button><button type="button" class="btn" id="resetPassword" style="width:100%;margin-top:8px">Forgot password?</button></form><p id="authMessage" class="status"></p><p class="foot">Use a unique password. Supabase handles password authentication.</p></section>
+<section id="authPanel" class="panel auth"><h2 id="authTitle">Sign in to OweNote</h2><p class="muted" style="margin-top:4px">Your records sync securely to your account across devices.</p><div class="tabs"><button type="button" class="btn primary" id="showLogin">Sign in</button><button type="button" class="btn" id="showSignup">Create account</button></div><form id="authForm"><div class="field"><label for="email">Email address</label><input id="email" type="email" autocomplete="email" required placeholder="you@example.com"></div><div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters"></div><button class="btn primary" id="authSubmit" style="width:100%">Sign in</button><button type="button" class="btn" id="resetPassword" style="width:100%;margin-top:8px">Forgot password?</button></form><p id="authMessage" class="status"></p><p class="foot">Use a unique password. Supabase handles password authentication.</p></section>
 <div id="appPanel" class="hidden">
 <div class="banner"><strong>Cloud data:</strong> records are stored in your Supabase project and protected by per-user database rules. Export backups periodically. WhatsApp messages are prepared for you to review and send.</div>
 <section class="stats"><div class="stat"><small>OUTSTANDING</small><strong id="outstanding">₹0</strong></div><div class="stat"><small>TOTAL LENT</small><strong id="lent">₹0</strong></div><div class="stat"><small>REPAID</small><strong id="repaid">₹0</strong></div><div class="stat red"><small>OVERDUE</small><strong id="overdue">₹0</strong></div></section>
@@ -27,7 +59,7 @@
 const SUPABASE_URL = "https://snlvzrbdytiqqjstqgxo.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_OStRfiGSfo3LA0j1UYDAUQ_26D8nZPa";
 const configured = SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("YOUR_") && !SUPABASE_ANON_KEY.includes("YOUR_");
-const $=id=>document.getElementById(id);let sb=null,user=null,loans=[],authMode='login',toastTimer;
+const $=id=>document.getElementById(id);let sb=null,user=null,loans=[],authMode=(window.__owenoteAuthMode||'login'),toastTimer;
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const money=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format(Number(n)||0);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -52,4 +84,17 @@ async function deleteLoan(id){if(!confirm('Delete this loan and its repayment hi
 function whatsapp(l){if(bal(l)<=0)return;const msg=`Hey ${l.name}, just a friendly reminder about the ${money(bal(l))} still pending from the money I lent you${l.due_date?' (due '+fmtDate(l.due_date)+')':''}. Could you send it when you get a chance? Thanks!`;const phone=(l.phone||'').replace(/\D/g,'');window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg),'_blank','noopener,noreferrer')}
 function download(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
 function exportJSON(){download(new Blob([JSON.stringify({app:'OweNote',version:2,exportedAt:new Date().toISOString(),loans},null,2)],{type:'application/json'}),`owenote-backup-${today()}.json`)}
-function exportCSV(){const rows=[['Name','Amount lent','Date lent','Due date','Repaid','Outstanding','Status','WhatsApp','Note']];loans.forEach(l=>rows.push([l.name,l.amount,l.lent_date,l.due_date||'',Math.min(lent(l),paid(l)),bal(l),state(l),l.phone||'',l.note||'']));download(new Blob(['\ufeff'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join('
+function exportCSV(){const rows=[['Name','Amount lent','Date lent','Due date','Repaid','Outstanding','Status','WhatsApp','Note']];loans.forEach(l=>rows.push([l.name,l.amount,l.lent_date,l.due_date||'',Math.min(lent(l),paid(l)),bal(l),state(l),l.phone||'',l.note||'']));download(new Blob(['\ufeff'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),`owenote-${today()}.csv`)}
+async function checkNotifications(){if(!('Notification'in window)||Notification.permission!=='granted')return;const due=loans.filter(l=>bal(l)>0&&l.due_date&&l.due_date<=today());const key='owenote.cloud.notified.'+today();let sent=[];try{sent=JSON.parse(sessionStorage.getItem(key)||'[]')}catch{}for(const l of due){if(!sent.includes(l.id)){new Notification(state(l)==='overdue'?'Repayment overdue':'Repayment due today',{body:`${l.name}: ${money(bal(l))} outstanding`});sent.push(l.id)}}sessionStorage.setItem(key,JSON.stringify(sent))}
+async function init(){if(!configured){$('configWarning').classList.remove('hidden');return}if(!window.supabase){$('authMessage').textContent='Could not load Supabase client. Check internet access.';return}sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);const {data}=await sb.auth.getSession();if(data.session){user=data.session.user;showApp();await loadLoans()}else showAuth();sb.auth.onAuthStateChange(async(_event,session)=>{if(session){user=session.user;showApp();await loadLoans()}else{user=null;loans=[];showAuth()}})}
+$('showLogin').onclick=()=>setMode('login');$('showSignup').onclick=()=>setMode('signup');$('authForm').onsubmit=authSubmit;$('resetPassword').onclick=async()=>{if(!configured)return toast('Configure Supabase first');const email=$('email').value.trim();if(!email)return toast('Enter your email first');const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.href});toast(error?error.message:'If the email is registered, a password-reset link has been sent.')};$('logoutBtn').onclick=async()=>{await sb.auth.signOut();showAuth()};$('addBtn').onclick=()=>loanForm();$('exportBtn').onclick=exportJSON;$('csvBtn').onclick=exportCSV;$('search').oninput=render;$('filter').onchange=render;$('enableNotif').onclick=async()=>{if(!('Notification'in window))return toast('Notifications are not supported by this browser');const p=await Notification.requestPermission();toast(p==='granted'?'Notifications enabled':'Permission not granted');checkNotifications()};$('backupHelp').onclick=()=>alert('Export JSON regularly to keep a backup. Existing records in the older local-only OweNote version are not automatically imported into this cloud version; a migration/import feature should be added before using it for your old records.');document.querySelector('.list').addEventListener('click',async e=>{const b=e.target.closest('[data-act]');if(!b)return;const l=loans.find(x=>x.id===b.dataset.id);if(!l)return;if(b.dataset.act==='repay')repaymentForm(l.id);if(b.dataset.act==='edit')loanForm(l.id);if(b.dataset.act==='wa')whatsapp(l);if(b.dataset.act==='delete')deleteLoan(l.id)});$('reminders').addEventListener('click',e=>{const b=e.target.closest('[data-act="wa"]');if(b){const l=loans.find(x=>x.id===b.dataset.id);if(l)whatsapp(l)}});setMode('login');init();
+</script>
+<script>
+window.addEventListener('error', function (event) {
+  const message = document.getElementById('authMessage');
+  if (message && !document.getElementById('appPanel')?.classList.contains('hidden')) return;
+  if (message) message.textContent = 'A website script error occurred. Reload this file; if it continues, share this error: ' + (event.message || 'Unknown JavaScript error');
+});
+</script>
+
+</body></html>
